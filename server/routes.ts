@@ -58,7 +58,8 @@ export async function registerRoutes(
       if (!existing) return res.status(404).json({ message: "Task not found" });
       if (existing.userId !== req.user!.id) return res.status(403).json({ message: "Forbidden" });
 
-      const input = api.tasks.update.input.parse(req.body);
+      const updateSchema = insertTaskSchema.partial();
+      const input = updateSchema.parse(req.body);
       const updated = await storage.updateTask(id, input);
       res.json(updated);
     } catch (err) {

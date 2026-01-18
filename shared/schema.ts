@@ -37,7 +37,7 @@ export const usersRelations = relations(users, ({ many }) => ({
 
 export const insertUserSchema = createInsertSchema(users).omit({ id: true, createdAt: true });
 export const insertTaskSchema = createInsertSchema(tasks, {
-  dueDate: z.coerce.date(),
+  dueDate: z.union([z.date(), z.string().transform(v => new Date(v))]).optional(),
 }).omit({ id: true, userId: true, createdAt: true, aiSummary: true });
 
 export type User = typeof users.$inferSelect;
