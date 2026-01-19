@@ -4,7 +4,8 @@ import { useToast } from "@/hooks/use-toast";
 
 // Use strict Zod schema types
 type LoginData = z.infer<typeof api.auth.login.input>;
-type RegisterData = z.infer<typeof api.auth.register.input>;
+type SendOtpData = z.infer<typeof api.auth.sendOtp.input>;
+type VerifyOtpData = z.infer<typeof api.auth.verifyOtp.input>;
 import { z } from "zod";
 
 export function useAuth() {
@@ -49,22 +50,43 @@ export function useAuth() {
     },
   });
 
-  const registerMutation = useMutation({
-    mutationFn: async (data: RegisterData) => {
-      const res = await fetch(api.auth.register.path, {
-        method: api.auth.register.method,
+  const sendOtpMutation = useMutation({
+    mutationFn: async (data: SendOtpData) => {
+      const res = await fetch(api.auth.sendOtp.path, {
+        method: api.auth.sendOtp.method,
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
       if (!res.ok) {
-        if (res.status === 400) {
-          const error = await res.json();
-          throw new Error(error.message || "Registration failed");
-        }
-        throw new Error("Registration failed");
+        throw new Error("Failed to send OTP");
       }
-      return api.auth.register.responses[201].parse(await res.json());
+      return api.auth.sendOtp.responses[200].parse(await res.json());
+    },
+    onSuccess: () => {
+      toast({ title: "OTP Sent", description: "Check your email for the OTP" });
+    },
+    onError: (error: Error) => {
+      toast({ 
+        title: "Failed to send OTP", 
+        description: error.message, 
+        variant: "destructive" 
+      });
+    },
+  });
+
+  const verifyOtpMutation = useMutation({
+    mutationFn: async (data: VerifyOtpData) => {
+      const res = await fetch(api.auth.verifyOtp.path, {
+        method: api.auth.verifyOtp.method,
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+      });
+
+      if (!res.ok) {
+        throw new Error("Invalid OTP");
+      }
+      return api.auth.verifyOtp.responses[201].parse(await res.json());
     },
     onSuccess: (data) => {
       queryClient.setQueryData([api.auth.me.path], data);
@@ -72,7 +94,7 @@ export function useAuth() {
     },
     onError: (error: Error) => {
       toast({ 
-        title: "Registration Failed", 
+        title: "Verification Failed", 
         description: error.message, 
         variant: "destructive" 
       });
@@ -94,7 +116,8 @@ export function useAuth() {
     user,
     isLoading,
     loginMutation,
-    registerMutation,
+    sendOtpMutation,
+    verifyOtpMutation,
     logoutMutation,
   };
 }

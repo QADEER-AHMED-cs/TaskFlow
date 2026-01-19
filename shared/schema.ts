@@ -1,27 +1,35 @@
-import { pgTable, text, serial, integer, boolean, timestamp, jsonb } from "drizzle-orm/pg-core";
+import { sqliteTable, text, integer } from "drizzle-orm/sqlite-core";
 import { relations } from "drizzle-orm";
 import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-export const users = pgTable("users", {
-  id: serial("id").primaryKey(),
+export const users = sqliteTable("users", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   username: text("username").notNull().unique(),
   password: text("password").notNull(),
   name: text("name").notNull().default("User"),
-  createdAt: timestamp("created_at").defaultNow(),
+  verified: integer("verified", { mode: "boolean" }).default(false),
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow(),
 });
 
-export const tasks = pgTable("tasks", {
-  id: serial("id").primaryKey(),
+export const tasks = sqliteTable("tasks", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
   userId: integer("user_id").notNull(), // No foreign key constraint for simplicity in lite mode, handled in app logic
   title: text("title").notNull(),
   description: text("description"),
-  priority: text("priority", { enum: ["low", "medium", "high"] }).default("medium").notNull(),
-  status: text("status", { enum: ["todo", "in_progress", "completed"] }).default("todo").notNull(),
-  dueDate: timestamp("due_date"),
+  priority: text("priority").notNull().default("medium"),
+  status: text("status").notNull().default("todo"),
+  dueDate: integer("due_date", { mode: "timestamp" }),
   aiSummary: text("ai_summary"),
-  tags: text("tags").array(),
-  createdAt: timestamp("created_at").defaultNow(),
+  tags: text("tags"), // JSON string
+  createdAt: integer("created_at", { mode: "timestamp" }).defaultNow(),
+});
+
+export const emailVerifications = sqliteTable("email_verifications", {
+  id: integer("id").primaryKey({ autoIncrement: true }),
+  email: text("email").notNull().unique(),
+  otp: text("otp").notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
 });
 
 export const tasksRelations = relations(tasks, ({ one }) => ({

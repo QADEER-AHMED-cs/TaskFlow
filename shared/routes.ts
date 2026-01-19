@@ -19,10 +19,28 @@ export const errorSchemas = {
 
 export const api = {
   auth: {
-    register: {
+    sendOtp: {
       method: 'POST' as const,
-      path: '/api/register',
-      input: insertUserSchema,
+      path: '/api/send-otp',
+      input: z.object({
+        email: z.string().email(),
+        password: z.string(),
+        name: z.string(),
+      }),
+      responses: {
+        200: z.object({ message: z.string() }),
+        400: errorSchemas.validation,
+      },
+    },
+    verifyOtp: {
+      method: 'POST' as const,
+      path: '/api/verify-otp',
+      input: z.object({
+        email: z.string().email(),
+        otp: z.string(),
+        password: z.string(),
+        name: z.string(),
+      }),
       responses: {
         201: z.custom<UserWithoutPassword>(),
         400: errorSchemas.validation,
@@ -32,7 +50,7 @@ export const api = {
       method: 'POST' as const,
       path: '/api/login',
       input: z.object({
-        username: z.string(),
+        email: z.string().email(),
         password: z.string(),
       }),
       responses: {

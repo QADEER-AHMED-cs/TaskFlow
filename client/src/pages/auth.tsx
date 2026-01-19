@@ -11,24 +11,34 @@ import { Loader2 } from "lucide-react";
 import { Redirect } from "wouter";
 
 const loginSchema = z.object({
-  username: z.string().min(3, "Username must be at least 3 characters"),
+  email: z.string().email("Invalid email"),
   password: z.string().min(6, "Password must be at least 6 characters"),
 });
 
-const registerSchema = loginSchema.extend({
+const registerSchema = z.object({
+  email: z.string().email("Invalid email"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
   name: z.string().min(2, "Name is required"),
+});
+
+const otpSchema = z.object({
+  otp: z.string().length(6, "OTP must be 6 digits"),
 });
 
 export default function AuthPage() {
   const [isLogin, setIsLogin] = useState(true);
-  const { loginMutation, registerMutation, user } = useAuth();
+  const [otpSent, setOtpSent] = useState(false);
+  const { loginMutation, sendOtpMutation, verifyOtpMutation, user } = useAuth();
 
   const form = useForm({
-    resolver: zodResolver(isLogin ? loginSchema : registerSchema),
+    resolver: zodResolver(
+      isLogin ? loginSchema : otpSent ? otpSchema : registerSchema
+    ),
     defaultValues: {
-      username: "",
+      email: "",
       password: "",
       name: "",
+      otp: "",
     },
   });
 
@@ -39,12 +49,21 @@ export default function AuthPage() {
   const onSubmit = (data: any) => {
     if (isLogin) {
       loginMutation.mutate(data);
+    } else if (!otpSent) {
+      sendOtpMutation.mutate(data);
+      setOtpSent(true);
     } else {
-      registerMutation.mutate(data);
+      const formData = form.getValues();
+      verifyOtpMutation.mutate({
+        email: formData.email,
+        otp: data.otp,
+        password: formData.password,
+        name: formData.name,
+      });
     }
   };
 
-  const isPending = loginMutation.isPending || registerMutation.isPending;
+  const isPending = loginMutation.isPending || sendOtpMutation.isPending || verifyOtpMutation.isPending;
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background overflow-hidden relative">
@@ -88,15 +107,16 @@ export default function AuthPage() {
             </AnimatePresence>
 
             <div className="space-y-2">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="email">Email</Label>
               <Input 
-                id="username" 
-                {...form.register("username")}
+                id="email" 
+                type="email"
+                {...form.register("email")}
                 className="bg-background/50 border-white/10" 
-                placeholder="username"
+                placeholder="your@email.com"
               />
-              {form.formState.errors.username && (
-                <p className="text-xs text-destructive">{(form.formState.errors as any).username.message}</p>
+              {form.formState.errors.email && (
+                <p className="text-xs text-destructive">{(form.formState.errors as any).email.message}</p>
               )}
             </div>
 
@@ -114,13 +134,35 @@ export default function AuthPage() {
               )}
             </div>
 
+            <AnimatePresence mode="wait">
+              {!isLogin && otpSent && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: "auto", opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="space-y-2 overflow-hidden"
+                >
+                  <Label htmlFor="otp">OTP</Label>
+                  <Input 
+                    id="otp" 
+                    {...form.register("otp")}
+                    className="bg-background/50 border-white/10" 
+                    placeholder="123456"
+                  />
+                  {form.formState.errors.otp && (
+                    <p className="text-xs text-destructive">{(form.formState.errors as any).otp.message}</p>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
             <Button 
               type="submit" 
               className="w-full btn-gradient h-11 text-base font-medium mt-6"
               disabled={isPending}
             >
               {isPending && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isLogin ? "Sign In" : "Create Account"}
+              {isLogin ? "Sign In" : otpSent ? "Verify OTP" : "Send OTP"}
             </Button>
           </form>
 
@@ -128,7 +170,11 @@ export default function AuthPage() {
             <p className="text-sm text-muted-foreground">
               {isLogin ? "Don't have an account?" : "Already have an account?"}
               <button 
-                onClick={() => setIsLogin(!isLogin)}
+                onClick={() => {
+                  setIsLogin(!isLogin);
+                  setOtpSent(false);
+                  form.reset();
+                }}
                 className="ml-2 text-primary hover:underline font-medium focus:outline-none"
               >
                 {isLogin ? "Register" : "Login"}

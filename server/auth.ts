@@ -6,6 +6,10 @@ import { scrypt, randomBytes, timingSafeEqual } from "crypto";
 import { promisify } from "util";
 import { storage } from "./storage";
 import { User } from "@shared/schema";
+import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { sendOTP } from "./email";
+import { emailVerifications } from "@shared/schema";
 
 const scryptAsync = promisify(scrypt);
 
@@ -45,6 +49,9 @@ export function setupAuth(app: Express) {
         if (!user || !(await comparePasswords(password, user.password))) {
           return done(null, false);
         } else {
+          if (!user.verified) {
+            return done(null, false);
+          }
           return done(null, user);
         }
       } catch (err) {
@@ -66,19 +73,50 @@ export function setupAuth(app: Express) {
     }
   });
 
-  app.post("/api/register", async (req, res, next) => {
+  app.post("/api/send-otp", async (req, res, next) => {
+    const { email, password, name } = req.body;
     try {
-      const existingUser = await storage.getUserByUsername(req.body.username);
+      const existingUser = await storage.getUserByUsername(email);
       if (existingUser) {
-        return res.status(400).send("Username already exists");
+        return res.status(400).send("Email already exists");
       }
 
-      const hashedPassword = await hashPassword(req.body.password);
+      // generate OTP
+      const otp = Math.floor(100000 + Math.random() * 900000).toString();
+      const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+      // delete any existing verification for this email
+      await db.delete(emailVerifications).where(eq(emailVerifications.email, email));
+
+      // insert into emailVerifications
+      await db.insert(emailVerifications).values({ email, otp, expiresAt });
+
+      // send email
+      await sendOTP(email, otp);
+
+      res.json({ message: 'OTP sent to email' });
+    } catch (err) {
+      next(err);
+    }
+  });
+
+  app.post("/api/verify-otp", async (req, res, next) => {
+    const { email, otp, password, name } = req.body;
+    try {
+      const [verification] = await db.select().from(emailVerifications).where(eq(emailVerifications.email, email));
+      if (!verification || verification.otp !== otp || new Date(verification.expiresAt) < new Date()) {
+        return res.status(400).send("Invalid or expired OTP");
+      }
+
+      const hashedPassword = await hashPassword(password);
       const user = await storage.createUser({
-        username: req.body.username,
-        name: req.body.name,
+        username: email,
+        name,
         password: hashedPassword,
+        verified: true,
       });
+
+      await db.delete(emailVerifications).where(eq(emailVerifications.email, email));
 
       req.login(user, (err) => {
         if (err) return next(err);

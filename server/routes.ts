@@ -4,7 +4,7 @@ import { setupAuth } from "./auth";
 import { storage } from "./storage";
 import { api, errorSchemas } from "@shared/routes";
 import { z } from "zod";
-import { openai } from "./replit_integrations/image/client"; // reusing existing openai client setup
+import { openai } from "./openai";
 
 export async function registerRoutes(
   httpServer: Server,
