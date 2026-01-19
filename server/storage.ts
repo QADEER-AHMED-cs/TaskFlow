@@ -1,10 +1,10 @@
 import { users, tasks, type User, type InsertUser, type Task, type InsertTask } from "@shared/schema";
-import { db } from "./db";
+import { db, pool } from "./db"; // <-- import the PostgreSQL pool
 import { eq } from "drizzle-orm";
 import session from "express-session";
-import MemoryStore from "memorystore";
+import connectPg from "connect-pg-simple";
 
-const MemoryStoreSession = MemoryStore(session);
+const PostgresSessionStore = connectPg(session);
 
 export interface IStorage {
   getUser(id: number): Promise<User | undefined>;
@@ -16,7 +16,7 @@ export interface IStorage {
   createTask(task: InsertTask & { userId: number }): Promise<Task>;
   updateTask(id: number, updates: Partial<InsertTask>): Promise<Task>;
   deleteTask(id: number): Promise<void>;
-  
+
   sessionStore: session.Store;
 }
 
@@ -24,7 +24,13 @@ export class DatabaseStorage implements IStorage {
   sessionStore: session.Store;
 
   constructor() {
-    this.sessionStore = new MemoryStoreSession({ checkPeriod: 86400000 });
+    // Use PostgreSQL for session storage
+    this.sessionStore = new PostgresSessionStore({
+      pool,                  // Reuse the PostgreSQL connection pool from db.ts
+      tableName: "session",  // Table name for storing sessions
+      createTableIfMissing: true,
+      pruneSessionInterval: 86400, // Prune expired sessions every 24h
+    });
   }
 
   async getUser(id: number): Promise<User | undefined> {
